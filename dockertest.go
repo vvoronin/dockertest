@@ -232,15 +232,22 @@ func (d *Pool) RunWithOptions(opts *RunOptions, hcOpts ...func(*dc.HostConfig)) 
 	}
 
 	mounts := []dc.Mount{}
+	filtredMounts := make([]string,0)
+	tmpfs := make(map[string]string)
 
 	for _, m := range opts.Mounts {
 		sd := strings.Split(m, ":")
 		if len(sd) == 2 {
-			mounts = append(mounts, dc.Mount{
-				Source:      sd[0],
-				Destination: sd[1],
-				RW:          true,
-			})
+			if sd[0] == `tmpfs` {
+				tmpfs[sd[1]] = `rw,size=65536k`
+			} else {
+				filtredMounts = append(filtredMounts, m)
+				mounts = append(mounts, dc.Mount{
+					Source:      sd[0],
+					Destination: sd[1],
+					RW:          true,
+				})
+			}
 		} else {
 			return nil, errors.Wrap(fmt.Errorf("invalid mount format: got %s, expected <src>:<dst>", m), "")
 		}
@@ -269,7 +276,7 @@ func (d *Pool) RunWithOptions(opts *RunOptions, hcOpts ...func(*dc.HostConfig)) 
 
 	hostConfig := dc.HostConfig{
 		PublishAllPorts: true,
-		Binds:           opts.Mounts,
+		Binds:           filtredMounts,
 		Links:           opts.Links,
 		PortBindings:    opts.PortBindings,
 		ExtraHosts:      opts.ExtraHosts,
@@ -277,6 +284,7 @@ func (d *Pool) RunWithOptions(opts *RunOptions, hcOpts ...func(*dc.HostConfig)) 
 		SecurityOpt:     opts.SecurityOpt,
 		Privileged:      opts.Privileged,
 		DNS:             opts.DNS,
+		Tmpfs: 			 tmpfs,
 	}
 
 	for _, hostConfigOption := range hcOpts {

@@ -76,6 +76,37 @@ func TestMongo(t *testing.T) {
 	require.Nil(t, pool.Purge(resource))
 }
 
+func TestMongoTmpfs(t *testing.T) {
+	options := &RunOptions{
+		Repository: "mongo",
+		Tag:        "3.3.12",
+		Cmd:        []string{"mongod", "--smallfiles", "--port", "3000"},
+		// expose a different port
+		ExposedPorts: []string{"3000"},
+		Mounts: []string{`tmpfs:/data`},
+	}
+	resource, err := pool.RunWithOptions(options)
+	require.Nil(t, err)
+	port := resource.GetPort("3000/tcp")
+	assert.NotEmpty(t, port)
+
+	err = pool.Retry(func() error {
+		response, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s", port))
+
+		if err != nil {
+			return err
+		}
+
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("could not connect to resource")
+		}
+
+		return nil
+	})
+	require.Nil(t, err)
+	require.Nil(t, pool.Purge(resource))
+}
+
 func TestContainerWithName(t *testing.T) {
 	resource, err := pool.RunWithOptions(
 		&RunOptions{
